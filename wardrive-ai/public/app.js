@@ -17,12 +17,15 @@ const state = {
   routeLayer: null,
   waypointLayer: null,
   wigleTileLayer: null,
+  kmlLayer: null,
 
   // Data
   currentNetworks: [],
   currentGrid: null,
   currentRoute: null,
   currentWaypoints: [],
+  kmlTracks: [],        // loaded KML track data
+  kmlCoveredCells: null, // Set of "row,col" strings covered by KML
 
   // UI
   phase: "idle",
@@ -56,9 +59,10 @@ function startKeepAlive() {
 // Initialization
 // ============================================================
 function init() {
-  state.wigle = new WigleAPI();
+  state.wigle   = new WigleAPI();
   state.analyzer = new DensityAnalyzer();
-  state.planner = new RoutePlanner();
+  state.planner  = new RoutePlanner();
+  state.kmlParser = new KMLParser();
 
   initMap();
   loadSettings();
@@ -93,8 +97,9 @@ function initMap() {
   updateWigleTileLayer();
 
   // Named layer groups so we can clear each independently
-  state.gridLayer = L.layerGroup().addTo(state.map);
-  state.routeLayer = L.layerGroup().addTo(state.map);
+  state.kmlLayer      = L.layerGroup().addTo(state.map); // KML under everything
+  state.gridLayer     = L.layerGroup().addTo(state.map);
+  state.routeLayer    = L.layerGroup().addTo(state.map);
   state.waypointLayer = L.layerGroup().addTo(state.map);
 
   if (navigator.geolocation) {
@@ -260,8 +265,14 @@ async function startScan() {
     );
     state.currentGrid = gridData;
 
-    // 4 — Score cells
-    const scoredCells = state.analyzer.scoreCells(gridData);
+    // 4 — Score cells (pass KML coverage so already-driven cells are penalised)
+    if (state.kmlTracks.length > 0 && state.currentGrid) {
+      // Recompute covered cells for the new grid
+      const allPts = state.kmlTracks.flatMap((t) => t.coords);
+      state.kmlCoveredCells = state.kmlParser.getCoveredCells(allPts, gridData, 0.0006);
+      console.log(`[KML] ${state.kmlCoveredCells.size} cells marked as already-driven`);
+    }
+    const scoredCells = state.analyzer.scoreCells(gridData, state.kmlCoveredCells);
 
     // 5 — Draw grid overlay
     if (state.settings.showGrid) {
@@ -335,6 +346,101 @@ function clearLayers() {
   state.gridLayer.clearLayers();
   state.routeLayer.clearLayers();
   state.waypointLayer.clearLayers();
+  // Note: KML layer is NOT cleared here — persists across scans intentionally
+}
+
+function clearKmlLayer() {
+  state.kmlLayer.clearLayers();
+  state.kmlTracks = [];
+  state.kmlCoveredCells = null;
+  document.getElementById("kmlBadge").style.display = "none";
+  document.getElementById("kmlToggleBtn").style.display = "none";
+  showStatus("KML tracks cleared.", "info");
+}
+
+// ============================================================
+// KML Upload & Rendering
+// ============================================================
+
+function handleKmlUpload(files) {
+  if (!files || files.length === 0) return;
+
+  let totalTracks = 0;
+  let totalKm = 0;
+  let loadedCount = 0;
+
+  // Support multiple KML files at once
+  Array.from(files).forEach((file) => {
+    if (!file.name.toLowerCase().endsWith(".kml")) {
+      showStatus(`Skipped ${file.name} — not a .kml file`, "warn");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = state.kmlParser.parse(e.target.result);
+        state.kmlTracks.push(...parsed.tracks);
+        totalTracks += parsed.stats.trackCount;
+        totalKm     += parsed.stats.estimatedKm;
+        loadedCount++;
+
+        drawKmlTracks(parsed.tracks, file.name);
+
+        // Fit map to KML bounds if we have them
+        if (parsed.bounds && loadedCount === 1) {
+          state.map.fitBounds([
+            [parsed.bounds.south, parsed.bounds.west],
+            [parsed.bounds.north, parsed.bounds.east],
+          ], { padding: [30, 30] });
+        }
+
+        updateKmlBadge(totalTracks, totalKm);
+        showStatus(
+          `✓ Loaded ${file.name} — ${parsed.stats.trackCount} track(s), ~${totalKm.toFixed(1)} km driven`,
+          "success"
+        );
+      } catch (err) {
+        showStatus(`Failed to parse ${file.name}: ${err.message}`, "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+function drawKmlTracks(tracks, filename) {
+  const colors = ["#b44fff", "#ff44cc", "#ff44aa", "#aa44ff"];
+  const colorIdx = state.kmlLayer.getLayers().length % colors.length;
+  const color = colors[colorIdx];
+
+  tracks.forEach((track, i) => {
+    if (track.coords.length < 2) return;
+
+    const latLngs = track.coords.map(([lat, lon]) => [lat, lon]);
+
+    const line = L.polyline(latLngs, {
+      color,
+      weight:   3,
+      opacity:  0.75,
+      dashArray: null,
+    });
+
+    line.bindTooltip(
+      `<b>📍 Previous Scan</b><br>${track.name || filename}<br>${track.coords.length} GPS points`,
+      { sticky: true }
+    );
+
+    state.kmlLayer.addLayer(line);
+  });
+
+  // Show toggle button
+  document.getElementById("kmlToggleBtn").style.display = "flex";
+}
+
+function updateKmlBadge(trackCount, km) {
+  const badge = document.getElementById("kmlBadge");
+  badge.textContent = `${trackCount} track${trackCount !== 1 ? "s" : ""} · ${km.toFixed(1)} km`;
+  badge.style.display = "inline-flex";
 }
 
 function drawDensityGrid(gridData, scoredCells) {
@@ -597,6 +703,44 @@ function setupEventListeners() {
     state.settings.showWigleTiles = e.target.checked;
     updateWigleTileLayer();
   });
+
+  // KML upload
+  const kmlInput = document.getElementById("kmlFileInput");
+  document.getElementById("kmlUploadBtn").addEventListener("click", () => kmlInput.click());
+  kmlInput.addEventListener("change", (e) => {
+    handleKmlUpload(e.target.files);
+    kmlInput.value = ""; // allow re-uploading same file
+  });
+
+  // KML drag-and-drop on map
+  const mapEl = document.getElementById("map");
+  mapEl.addEventListener("dragover", (e) => { e.preventDefault(); mapEl.classList.add("drag-over"); });
+  mapEl.addEventListener("dragleave", () => mapEl.classList.remove("drag-over"));
+  mapEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    mapEl.classList.remove("drag-over");
+    const kmlFiles = Array.from(e.dataTransfer.files).filter((f) =>
+      f.name.toLowerCase().endsWith(".kml")
+    );
+    if (kmlFiles.length > 0) handleKmlUpload(kmlFiles);
+    else showStatus("Drop .kml files onto the map to load them.", "warn");
+  });
+
+  // KML visibility toggle
+  let kmlVisible = true;
+  document.getElementById("kmlToggleBtn").addEventListener("click", () => {
+    kmlVisible = !kmlVisible;
+    if (kmlVisible) {
+      state.map.addLayer(state.kmlLayer);
+      document.getElementById("kmlToggleBtn").textContent = "👁️ Hide Tracks";
+    } else {
+      state.map.removeLayer(state.kmlLayer);
+      document.getElementById("kmlToggleBtn").textContent = "👁️ Show Tracks";
+    }
+  });
+
+  // KML clear
+  document.getElementById("kmlClearBtn").addEventListener("click", clearKmlLayer);
 
   document.getElementById("forceRefreshBtn").addEventListener("click", () => {
     state.settings.forceRefresh = true;
