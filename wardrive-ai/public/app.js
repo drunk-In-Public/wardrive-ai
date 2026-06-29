@@ -72,6 +72,7 @@ function init() {
 
   setupEventListeners();
   startKeepAlive();
+  updateCacheStats();
 }
 
 // ============================================================
@@ -225,16 +226,24 @@ async function startScan() {
     showProgress("Verifying WiGLE credentials…", 2);
     await state.wigle.testAuth();
 
-    // 2 — Fetch networks
-    showProgress("Fetching networks from WiGLE…", 5);
+    // 2 — Fetch networks (uses cache if available)
+    showProgress("Checking cache / fetching networks from WiGLE…", 5);
+    let fromCache = false;
     const networks = await state.wigle.fetchAllNetworksInBounds(
       mapBounds,
-      (fetched, total) => {
-        const pct = Math.min(78, Math.round((fetched / total) * 70) + 5);
-        showProgress(`Fetched ${fetched} / ${total} networks…`, pct);
+      (fetched, total, cached) => {
+        fromCache = cached;
+        const label = cached ? `Using cached data — ${fetched} networks` : `Fetched ${fetched} / ${total} networks…`;
+        const pct   = Math.min(78, Math.round((fetched / total) * 70) + 5);
+        showProgress(label, pct);
       },
-      { maxResults: state.settings.maxNetworks, type: state.settings.networkType }
+      {
+        maxResults:    state.settings.maxNetworks,
+        type:          state.settings.networkType,
+        forceRefresh:  state.settings.forceRefresh,
+      }
     );
+    state.settings.forceRefresh = false; // reset after one use
 
     if (networks.length === 0) {
       showStatus("No networks found in this area — try a different location.", "warn");
@@ -305,8 +314,9 @@ async function startScan() {
     if (routeWarning) {
       showStatus(routeWarning, "warn");
     } else {
+      const cacheNote = fromCache ? " (cached data)" : "";
       showStatus(
-        `✓ Road route ready — ${orderedWaypoints.length} cold spots, ${route.totalDistanceKm.toFixed(1)} km`,
+        `✓ Road route ready — ${orderedWaypoints.length} cold spots, ${route.totalDistanceKm.toFixed(1)} km${cacheNote}`,
         "success"
       );
     }
@@ -588,6 +598,18 @@ function setupEventListeners() {
     updateWigleTileLayer();
   });
 
+  document.getElementById("forceRefreshBtn").addEventListener("click", () => {
+    state.settings.forceRefresh = true;
+    showStatus("Next scan will fetch fresh data from WiGLE (ignoring cache).", "info");
+    document.getElementById("forceRefreshBtn").textContent = "✓ Will refresh on next scan";
+  });
+
+  document.getElementById("clearCacheBtn").addEventListener("click", () => {
+    state.wigle.clearCache();
+    showStatus("Cache cleared. Next scan will fetch fresh data from WiGLE.", "success");
+    updateCacheStats();
+  });
+
   document.getElementById("locateBtn").addEventListener("click", () => {
     if (!navigator.geolocation) { showStatus("Geolocation not available.", "warn"); return; }
     navigator.geolocation.getCurrentPosition(
@@ -595,6 +617,21 @@ function setupEventListeners() {
       ()    => showStatus("Could not get location.", "warn")
     );
   });
+}
+
+// ============================================================
+// Cache Stats UI
+// ============================================================
+function updateCacheStats() {
+  const el = document.getElementById("cacheStats");
+  if (!el || !state.wigle) return;
+  const { count, oldestMs } = state.wigle.getCacheStats();
+  if (count === 0) {
+    el.textContent = "No cached areas yet.";
+  } else {
+    const hrs = Math.round(oldestMs / 1000 / 60 / 60);
+    el.textContent = `${count} area${count > 1 ? "s" : ""} cached · oldest ${hrs}h ago · expires in ${24 - hrs}h`;
+  }
 }
 
 // ============================================================
