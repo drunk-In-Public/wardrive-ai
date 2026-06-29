@@ -70,10 +70,11 @@ class DensityAnalyzer {
   /**
    * Score grid cells for wardriving potential
    * High score = good candidate (low existing scans, likely has devices)
-   * @param {object} gridData - Output from buildDensityGrid
+   * @param {object} gridData    - Output from buildDensityGrid
+   * @param {Set}    coveredCells - Optional Set of "row,col" strings from KML coverage
    * @returns {Array} Sorted array of scored cells
    */
-  scoreCells(gridData) {
+  scoreCells(gridData, coveredCells = null) {
     const { grid, gridSize } = gridData;
     const allCells = grid.flat();
 
@@ -129,11 +130,16 @@ class DensityAnalyzer {
         }
         const isolationPenalty = zeroNeighbors / 8; // 0 to 1, higher = more isolated
 
+        // 4. KML coverage penalty: heavily penalise cells already driven
+        const alreadyDriven = coveredCells ? coveredCells.has(`${row},${col}`) : false;
+        const kmlPenalty    = alreadyDriven ? 0.6 : 0;
+
         // --- Combined score ---
         const score =
-          scarcityScore * 0.55 + // Low existing scans is most important
-          neighborScore * 0.35 - // Near populated areas is good
-          isolationPenalty * 0.10; // Penalize isolation a bit
+          scarcityScore * 0.50 +  // Low existing scans is most important
+          neighborScore * 0.32  -  // Near populated areas is good
+          isolationPenalty * 0.08 - // Penalise isolation
+          kmlPenalty;               // Already driven = strongly avoid
 
         scored.push({
           ...cell,
@@ -141,6 +147,7 @@ class DensityAnalyzer {
           scarcityScore,
           neighborScore,
           isolationPenalty,
+          alreadyDriven,
           isZeroScan: cell.count === 0,
         });
       }
