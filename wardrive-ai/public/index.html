@@ -632,20 +632,6 @@
       </div>
     </div>
 
-    <!-- KML Upload Bar (above bottom panel) -->
-    <div id="kmlBar">
-      <input type="file" id="kmlFileInput" accept=".kml" multiple style="display:none" />
-      <button class="btn btn-secondary" id="kmlUploadBtn" style="font-size:12px;padding:6px 10px">
-        📂 Load KML Track
-      </button>
-      <span id="kmlBadge">📍 0 tracks</span>
-      <button class="btn btn-secondary" id="kmlToggleBtn" style="font-size:12px;padding:6px 10px">
-        👁️ Hide Tracks
-      </button>
-      <button class="btn btn-ghost" id="kmlClearBtn" style="font-size:12px;padding:6px 8px" title="Clear KML tracks">✕</button>
-      <span class="kml-hint">Or drag &amp; drop .kml files onto the map</span>
-    </div>
-
     <!-- Bottom Panel -->
     <div id="bottomPanel">
       <!-- Progress -->
@@ -698,6 +684,18 @@
             <div class="stat-label">Export GPX</div>
           </div>
         </div>
+      </div>
+
+      <!-- KML Track Row -->
+      <div id="kmlBar" style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--border);flex-wrap:wrap">
+        <input type="file" id="kmlFileInput" accept=".kml" multiple style="display:none" />
+        <button class="btn btn-secondary" id="kmlUploadBtn" style="font-size:12px;padding:7px 11px">
+          📂 Load KML
+        </button>
+        <span id="kmlBadge" style="display:none;background:rgba(180,79,255,0.2);color:#b44fff;border:1px solid rgba(180,79,255,0.4);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600"></span>
+        <button class="btn btn-ghost" id="kmlToggleBtn" style="display:none;font-size:12px;padding:6px 8px">👁️ Hide</button>
+        <button class="btn btn-ghost" id="kmlClearBtn" style="display:none;font-size:12px;padding:6px 8px;color:#ef4444">✕ Clear</button>
+        <span style="font-size:11px;color:var(--text-dim);flex:1">Load previous wardrive tracks to avoid retracing</span>
       </div>
 
       <!-- Action Bar -->
