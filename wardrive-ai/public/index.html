@@ -476,6 +476,67 @@
     /* ===== Waypoint labels ===== */
     .waypoint-label { background: transparent; border: none; }
 
+    /* ===== KML controls ===== */
+    #kmlBar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      background: rgba(180, 79, 255, 0.08);
+      border-bottom: 1px solid rgba(180, 79, 255, 0.2);
+      flex-wrap: wrap;
+    }
+
+    #kmlBadge {
+      display: none;
+      background: rgba(180, 79, 255, 0.2);
+      color: #b44fff;
+      border: 1px solid rgba(180, 79, 255, 0.4);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #kmlToggleBtn {
+      display: none;
+    }
+
+    .kml-hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      flex: 1;
+    }
+
+    /* Drag-over glow on map */
+    #map.drag-over::after {
+      content: "Drop .kml file here";
+      position: absolute;
+      inset: 0;
+      background: rgba(180, 79, 255, 0.25);
+      border: 3px dashed #b44fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #b44fff;
+      z-index: 9000;
+      pointer-events: none;
+      border-radius: 4px;
+    }
+
+    /* KML legend entry */
+    .legend-kml {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      padding-top: 4px;
+    }
+
     /* ===== Leaflet overrides ===== */
     .leaflet-control-zoom {
       border: 1px solid var(--border) !important;
@@ -563,8 +624,26 @@
             <div style="width:12px;height:12px;border-radius:50%;background:#00ff88;flex-shrink:0"></div>
             <span>Cold spot</span>
           </div>
+          <div class="legend-item legend-kml">
+            <div style="width:24px;height:3px;background:#b44fff;border-radius:2px;flex-shrink:0"></div>
+            <span>Prior scan</span>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- KML Upload Bar (above bottom panel) -->
+    <div id="kmlBar">
+      <input type="file" id="kmlFileInput" accept=".kml" multiple style="display:none" />
+      <button class="btn btn-secondary" id="kmlUploadBtn" style="font-size:12px;padding:6px 10px">
+        📂 Load KML Track
+      </button>
+      <span id="kmlBadge">📍 0 tracks</span>
+      <button class="btn btn-secondary" id="kmlToggleBtn" style="font-size:12px;padding:6px 10px">
+        👁️ Hide Tracks
+      </button>
+      <button class="btn btn-ghost" id="kmlClearBtn" style="font-size:12px;padding:6px 8px" title="Clear KML tracks">✕</button>
+      <span class="kml-hint">Or drag &amp; drop .kml files onto the map</span>
     </div>
 
     <!-- Bottom Panel -->
@@ -732,6 +811,24 @@
           </div>
         </div>
 
+        <!-- Cache Management -->
+        <div class="settings-section">
+          <div class="settings-section-title">🗄️ Data Cache</div>
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">
+            Scan results are cached for 24 hours to save your daily WiGLE API quota.
+            Scanning the same area again will use cached data instantly.
+          </p>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button class="btn btn-secondary" id="forceRefreshBtn" style="flex:1;justify-content:center;font-size:12px">
+              🔄 Force Fresh Scan
+            </button>
+            <button class="btn btn-danger" id="clearCacheBtn" style="flex:1;justify-content:center;font-size:12px">
+              🗑️ Clear Cache
+            </button>
+          </div>
+          <div id="cacheStats" style="font-size:11px;color:var(--text-dim);text-align:center"></div>
+        </div>
+
         <!-- How To Use -->
         <div class="settings-section">
           <div class="settings-section-title">📖 How to Use</div>
@@ -760,6 +857,7 @@
   <script src="/wigle-api.js"></script>
   <script src="/density-analyzer.js"></script>
   <script src="/route-planner.js"></script>
+  <script src="/kml-parser.js"></script>
   <script src="/app.js"></script>
 
   <!-- Service Worker -->
