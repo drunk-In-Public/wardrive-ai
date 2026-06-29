@@ -4,6 +4,98 @@
  */
 
 // ============================================================
+// KML Parser (inlined — no separate file needed)
+// ============================================================
+class KMLParser {
+  parse(kmlText) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(kmlText, "application/xml");
+    if (doc.querySelector("parsererror")) {
+      throw new Error("Invalid KML file");
+    }
+    const tracks = [];
+    const points = [];
+    doc.querySelectorAll("Placemark").forEach((pm) => {
+      const name = (pm.querySelector("name") || {}).textContent || "Track";
+      // LineStrings (standard wardrive tracks)
+      pm.querySelectorAll("LineString").forEach((ls) => {
+        const coords = this._parseCoords(ls);
+        if (coords.length >= 2) tracks.push({ name, coords });
+      });
+      // gx:Track (Google Earth extended format)
+      pm.querySelectorAll("Track, gx\\:Track").forEach((gt) => {
+        const coords = [];
+        gt.querySelectorAll("coord, gx\\:coord").forEach((c) => {
+          const p = c.textContent.trim().split(/\s+/);
+          if (p.length >= 2) {
+            const lon = parseFloat(p[0]), lat = parseFloat(p[1]);
+            if (!isNaN(lat) && !isNaN(lon)) coords.push([lat, lon]);
+          }
+        });
+        if (coords.length >= 2) tracks.push({ name, coords });
+      });
+      // Points
+      pm.querySelectorAll("Point").forEach((pt) => {
+        const c = this._parseCoords(pt);
+        if (c.length > 0) points.push({ name, lat: c[0][0], lon: c[0][1] });
+      });
+    });
+    const allTrackPoints = tracks.flatMap((t) => t.coords);
+    let bounds = null;
+    if (allTrackPoints.length > 0) {
+      bounds = {
+        south: Math.min(...allTrackPoints.map((c) => c[0])),
+        north: Math.max(...allTrackPoints.map((c) => c[0])),
+        west:  Math.min(...allTrackPoints.map((c) => c[1])),
+        east:  Math.max(...allTrackPoints.map((c) => c[1])),
+      };
+    }
+    const estKm = tracks.reduce((total, t) => {
+      for (let i = 1; i < t.coords.length; i++) {
+        total += this._hav(t.coords[i-1][0], t.coords[i-1][1], t.coords[i][0], t.coords[i][1]);
+      }
+      return total;
+    }, 0);
+    return { tracks, points, allTrackPoints, bounds, stats: { trackCount: tracks.length, estimatedKm: estKm } };
+  }
+
+  getCoveredCells(allTrackPoints, gridData, bufferDeg = 0.0006) {
+    const { grid, gridSize, bounds } = gridData;
+    const { south, north, west, east } = bounds;
+    const latStep = (north - south) / gridSize;
+    const lonStep = (east  - west)  / gridSize;
+    const covered = new Set();
+    for (const [lat, lon] of allTrackPoints) {
+      const rowMin = Math.floor((lat - bufferDeg - south) / latStep);
+      const rowMax = Math.floor((lat + bufferDeg - south) / latStep);
+      const colMin = Math.floor((lon - bufferDeg - west)  / lonStep);
+      const colMax = Math.floor((lon + bufferDeg - west)  / lonStep);
+      for (let r = Math.max(0, rowMin); r <= Math.min(gridSize-1, rowMax); r++)
+        for (let c = Math.max(0, colMin); c <= Math.min(gridSize-1, colMax); c++)
+          covered.add(`${r},${c}`);
+    }
+    return covered;
+  }
+
+  _parseCoords(el) {
+    const coordEl = el.querySelector("coordinates");
+    if (!coordEl) return [];
+    return coordEl.textContent.trim().split(/\s+/).map((token) => {
+      const parts = token.split(",");
+      if (parts.length < 2) return null;
+      const lon = parseFloat(parts[0]), lat = parseFloat(parts[1]);
+      return (!isNaN(lat) && !isNaN(lon)) ? [lat, lon] : null;
+    }).filter(Boolean);
+  }
+
+  _hav(lat1, lon1, lat2, lon2) {
+    const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+}
+
+// ============================================================
 // App State
 // ============================================================
 const state = {
