@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Dark background -->
+  <rect width="32" height="32" rx="6" fill="#0a0f1a"/>
+
+  <!-- Glow filter -->
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Layers icon (matches the header SVG) scaled to fit 32x32 -->
+  <g filter="url(#glow)" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(4,4) scale(1.0)">
+    <!-- Top diamond -->
+    <path d="M12 2 L2 7 L12 12 L22 7 Z" fill="rgba(0,212,255,0.15)"/>
+    <!-- Middle line -->
+    <path d="M2 12 L12 17 L22 12"/>
+    <!-- Bottom line -->
+    <path d="M2 17 L12 22 L22 17"/>
+  </g>
+</svg>
