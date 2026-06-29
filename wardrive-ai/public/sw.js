@@ -3,7 +3,7 @@
  * Caches app shell for offline use
  */
 
-const CACHE_NAME = "wardrive-ai-v1";
+const CACHE_NAME = "wardrive-ai-v3";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
