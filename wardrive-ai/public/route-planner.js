@@ -6,7 +6,9 @@
 
 class RoutePlanner {
   constructor() {
-    this.this.osrmBase = "https://router.project-osrm.org/route/v1/driving";
+    // Call OSRM directly from the browser (not via server proxy).
+    // OSRM blocks datacenter IPs but allows browser requests from residential IPs.
+    this.osrmBase = "https://router.project-osrm.org/route/v1/driving";
     this.maxWaypoints = 25; // OSRM URL limit
   }
 
