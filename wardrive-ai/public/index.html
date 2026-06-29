@@ -851,6 +851,20 @@
     </div>
   </div>
 
+  <!-- Error display — shows JS crashes on screen for debugging -->
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      var box = document.getElementById('jsErrorBox');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'jsErrorBox';
+        box.style = 'position:fixed;bottom:0;left:0;right:0;background:#7f0000;color:#fff;padding:12px 16px;font-size:13px;z-index:99999;font-family:monospace;white-space:pre-wrap;max-height:40vh;overflow:auto';
+        document.body.appendChild(box);
+      }
+      box.textContent += '❌ ' + msg + '\n   ' + (src||'').split('/').pop() + ':' + line + '\n\n';
+    };
+  </script>
+
   <!-- App scripts -->
   <script src="/wigle-api.js"></script>
   <script src="/density-analyzer.js"></script>
@@ -860,6 +874,10 @@
   <!-- Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
+      // Unregister old service workers to ensure fresh files load
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(reg) { reg.update(); });
+      });
       navigator.serviceWorker.register('/sw.js').catch(console.error);
     }
   </script>
