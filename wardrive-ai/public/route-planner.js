@@ -6,7 +6,7 @@
 
 class RoutePlanner {
   constructor() {
-    this.osrmBase = "/osrm-proxy/route/v1/driving";
+    this.this.osrmBase = "https://router.project-osrm.org/route/v1/driving";
     this.maxWaypoints = 25; // OSRM URL limit
   }
 
