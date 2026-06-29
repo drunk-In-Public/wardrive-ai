@@ -439,8 +439,10 @@ function drawKmlTracks(tracks, filename) {
 
 function updateKmlBadge(trackCount, km) {
   const badge = document.getElementById("kmlBadge");
-  badge.textContent = `${trackCount} track${trackCount !== 1 ? "s" : ""} · ${km.toFixed(1)} km`;
+  badge.textContent = `📍 ${trackCount} track${trackCount !== 1 ? "s" : ""} · ${km.toFixed(1)} km`;
   badge.style.display = "inline-flex";
+  document.getElementById("kmlToggleBtn").style.display = "inline-flex";
+  document.getElementById("kmlClearBtn").style.display  = "inline-flex";
 }
 
 function drawDensityGrid(gridData, scoredCells) {
